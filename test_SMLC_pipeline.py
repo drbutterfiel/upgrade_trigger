@@ -14,6 +14,11 @@ import dask.dataframe as dd
 from icecube import icetray, dataio, dataclasses, simclasses, phys_services, trigger_sim
 import sys
 
+
+# -----------------------------------------------
+# prototype the pree-trigger processing pipeline
+# -----------------------------------------------
+
 class Driver: # PRIORITY #
     '''Could do something like unpack file, sort / demux, etc., builds processing pipeline'''
     # def __init__(all_omkeys):
