@@ -8,6 +8,7 @@ from pipeline.injest import Population
 from pipeline.injest import ModuleKey
 from pipeline.injest import MyHit
 from uglc.smlc import SMLC
+from uglc.mmlc import MMLC
 
 
 class Pipeline:
@@ -28,10 +29,38 @@ class Pipeline:
         # by_module: omkeys grouped by module
         self.om_keys = all_omkeys
         self.by_module = Population.byModule(self.om_keys)
+        self.byString = Population.byString(self.om_keys)
 
         # assemble the processing pipeline
         self.sink = sink                                                                            # sink:        The terminal node: receives the processed hits in time order
-        self.sorter_out = Sorter(self.by_module.keys(), sink)                                 # sorter_out:  Receives the processed hits from each SMLC, sorts on time and passes to terminal node
+
+
+       ########################################################
+       # Build the pipeline, working back to front
+       ########################################################
+
+
+
+       ########################################################
+       # DEMUX(to string) -> MMLC - > SORT -> out
+       ########################################################
+        # build an input map that feeds each omkey stream to a per-string MMLC instance             # to_mmlc:  Receives the processed (after SMLC/SORT), demuxes on string, passes to mmlc node, join at sorter and then to terminal node
+        string_to_mmlc = {}
+
+        # for k in self.byString.keys():
+             # print(f'[{k}]-->{len(self.byString[k])}')
+        
+        post_mmlc_sorter = Sorter(self.byString.keys(), sink)
+        for k in self.byString.keys():
+            string_to_mmlc[k] = MMLC(k, MMLC.MMLCConfig(100), post_mmlc_sorter.inputFor(k))
+
+        to_mmlc = StringDemuxer(string_to_mmlc)
+
+
+       ########################################################
+       # SORT -> SMLC - > SORT -> MMLC
+       ########################################################
+        self.sorter_out = Sorter(self.by_module.keys(), to_mmlc)                                 # sorter_out:  Receives the processed hits from each SMLC, sorts on time and passes to mmlc node
        
 
         # build an input map that feeds each omkey stream to a per-module SORT/SMLC pipeline        # a per-module SORT/SMLC pipeline with per-omkey inputs
@@ -42,7 +71,11 @@ class Pipeline:
                 self.by_omkey_input[omk] = modulesort.inputFor(omk);
 
 
-        self.demux = Demuxer(self.by_omkey_input)                                                    # demux:       Demuxes a stream by omkey, pushing hits to the correct OMKEY/SORT/SMLC pipelines
+
+       ########################################################
+       # DEMUX(to omkey) -> SORT
+       ########################################################
+        self.demux = OMKEYDemuxer(self.by_omkey_input)                                                    # demux:       Demuxes a stream by omkey, pushing hits to the correct OMKEY/SORT/SMLC pipelines
         
         self.input_node = self.demux                                                                 # input_node alias the demuxer as "input node" 
 
@@ -71,7 +104,7 @@ def ensureSink(obj):
         raise RuntimeError(f'Not a sink: {obj}');
 
 
-class Demuxer:
+class OMKEYDemuxer:
     '''' demuxes hits from a unified stream to a stream-per omkey'''
     def __init__(self, sinks):
             for s in sinks.values():
@@ -95,6 +128,30 @@ class Demuxer:
         for sink in self.sinks.values():
            sink.eos()
 
+
+class StringDemuxer:
+    '''' demuxes hits from a unified stream to a stream-per String'''
+    def __init__(self, sinks):
+            for s in sinks.values():
+                ensureSink(s)
+            self.sinks = sinks
+
+
+    def enque(self, myhit):
+        if myhit.omkey.string not in self.sinks:
+            raise RuntimeError(f"String {myhit.omkey.string} not in sink dict")
+
+        # suport using a sentinel hit to trigger per-stream EOS 
+        if not myhit.isEOS():
+            self.sinks[myhit.omkey.string].enque(myhit)
+        else:
+            self.sinks[myhit.omkey.string].eos()
+            
+
+    def eos(self):
+        ''' Call eos on all sinks'''
+        for sink in self.sinks.values():
+           sink.eos()
 
 class Counter:
     '''Sanity check'''
@@ -280,7 +337,7 @@ class Sorter:
         def eos(self):
             # print(f'eos({self.key})')
             if self.iseos:
-                raise RuntimeError(f'duplicate eos({self.key}')
+                raise RuntimeError(f'duplicate eos({self.key})')
 
             self.iseos=True;
             self.sorter.eos(self.key)

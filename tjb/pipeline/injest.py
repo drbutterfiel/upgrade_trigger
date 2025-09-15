@@ -103,6 +103,17 @@ class Population:
 
         return by_module
 
+    def byString(omkeys):
+        ''' index om keys by module '''
+        by_string = {}
+
+        for omkey in omkeys:
+            if omkey.string not in by_string.keys():
+                by_string[omkey.string] = set()
+            by_string[omkey.string].add(omkey)
+
+        return by_string
+
     def extractTimeInterval(rpsm):
         ''' learn t_min, t_max '''
         t_min = None
