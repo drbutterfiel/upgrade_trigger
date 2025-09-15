@@ -1,7 +1,47 @@
 from collections import deque
 
 class MMLC:
-    ''' Only marks the hits, does not release hits or move the window'''
+    ''' Synthesizes MMLC for hits.
+        based on a a sliding window of windows with mmlc calculated hit-by-hit in time order
+
+
+        Synopsis:
+
+            maintains a buffer of hits with associated LC window in time-order
+
+            -----------------------------------------------------
+            |       held        |    pending                    |
+            -----------------------------------------------------
+            | x | x | x | x | x | x | x | x | x | x | x | x | x |
+            -----------------------------------------------------
+                                  |                       |   |
+                                  |                       |   |
+                                  |                       |    pit
+                                  |                       |
+                                  |              |----------------|
+                                  |                   <window>
+                           |-------------|  
+                               <window>
+                          back          fwd      
+
+
+
+
+
+
+
+
+            at each hit insertion:
+
+                  while pending.head.fwd < pit
+                        calulate mmlc on pending.head (using all relavent hits in held+pending)
+                        promote pending.head to held
+
+                  while held.head.time < pit + MAX_WINDOW
+                        release held.head to sink
+
+
+    '''
     
 
 
