@@ -63,8 +63,13 @@ class MMLC:
             # todo this is not the mmlc alg, need to check id neighbor
             t= hit.resolveTime()
             self.cost += 1
+            if hit.omkey.om == self.hit.omkey.om:
+                return
             if t >= self.t_start and t<= self.t_end:
-                self.mmlc +=1
+                if hit.omkey.om <= (self.hit.omkey.om + 4) or hit.omkey.om >= (self.hit.omkey.om - 4):
+                    self.mmlc +=1
+                    if self.mmlc >= 2:
+                        self.hit.markMMLC()
 
 
 
@@ -108,8 +113,9 @@ class MMLC:
                 hw = self.held.popleft()
                 # if hw.cost>4:
                 #     print(f'Release MMLC {hw.hit.omkey} @ {hw.t_hit}, cost: {hw.cost}, mmlc {hw.mmlc}')
-                if hw.mmlc > 0:
-                    hw.hit.markMMLC()
+                # if hw.mmlc > 0:
+                #     hw.hit.markMMLC()
+                
                 self.sink.enque(hw.hit)
             else:
                 break;
