@@ -50,7 +50,7 @@ class Pipeline:
         # for k in self.byString.keys():
              # print(f'[{k}]-->{len(self.byString[k])}')
         
-        post_mmlc_sorter = Sorter(self.byString.keys(), sink)
+        post_mmlc_sorter = PairHeapSorter(self.byString.keys(), sink)
         for k in self.byString.keys():
             string_to_mmlc[k] = MMLC(k, MMLC.MMLCConfig(100), post_mmlc_sorter.inputFor(k))
 
@@ -60,13 +60,13 @@ class Pipeline:
        ########################################################
        # SORT -> SMLC - > SORT -> MMLC
        ########################################################
-        self.sorter_out = Sorter(self.by_module.keys(), to_mmlc)                                 # sorter_out:  Receives the processed hits from each SMLC, sorts on time and passes to mmlc node
+        self.sorter_out = PairHeapSorter(self.by_module.keys(), to_mmlc)                                 # sorter_out:  Receives the processed hits from each SMLC, sorts on time and passes to mmlc node
        
 
         # build an input map that feeds each omkey stream to a per-module SORT/SMLC pipeline        # a per-module SORT/SMLC pipeline with per-omkey inputs
         self.by_omkey_input = {}
         for k in self.by_module.keys():
-            modulesort = Sorter(self.by_module[k], SMLC(k, SMLC.SMLCConfig(100), self.sorter_out.inputFor(k)))
+            modulesort = PairHeapSorter(self.by_module[k], SMLC(k, SMLC.SMLCConfig(100), self.sorter_out.inputFor(k)))
             for omk in self.by_module[k]:
                 self.by_omkey_input[omk] = modulesort.inputFor(omk);
 
@@ -318,6 +318,7 @@ class Joiner:
         self.sink.eos()
 
 
+
 # O(n^2), super slow
 class Sorter:
     '''time sort multiple time-ordered streams into one time ordered stream'''
@@ -343,7 +344,8 @@ class Sorter:
             self.sorter.eos(self.key)
 
         def earliest(self):
-            if(len(self.hits) > 0):
+            # if(len(self.hits) > 0):
+            if self.hits:
                 return self.hits[0].resolveTime()
             else:
                 return None
@@ -399,4 +401,144 @@ class Sorter:
                 return                 # All nodes empty and EOS
 
 
+# O(logn), better
+class PairHeapSorter:
+    '''time sort multiple time-ordered streams into one time ordered stream'''
+
+    class Item:
+        def __init__(self, time, hit):
+            self.time = time
+            self.hit = hit
+
+    class InputAdapter:
+        def __init__(self, node):
+            self.node = node;
+            self.iseos = False
+
+        def enque(self, hit):
+            self.node.sort(PairHeapSorter.Item(hit.resolveTime(), hit))
+
+        def eos(self):
+            if self.iseos:
+                raise RuntimeError(f'duplicate eos({self.node.id})')
+
+            self.node.sort(PairHeapSorter.Item(float('inf'), None))
+
+    class InputNode:
+        def __init__(self, id):
+            self.id=id
+            self.hits = deque()
+            self.peer = None;
+            self.sink = None;
+            self.isTerminal = False;
+            self.iseos = False
+ 
+        def sort(self, item):
+            # this is the terminal node
+            if self.isTerminal:
+                self.sink.enque(item) #sink is an output adapter rather than a node
+                return
+
+            self.hits.append(item)
+            self.release()
+
+        def eos(self):
+            # print(f'eos({self.id})')
+            if self.iseos:
+                raise RuntimeError(f'duplicate eos({self.id})')
+
+            self.enquq(Item(float('inf'), None))
+
+        def release(self):
+            while self.hits and self.peer.hits:
+                if self.hits[0].time < self.peer.hits[0].time:
+                    self.sink.sort(self.pop())
+                else:
+                    self.sink.sort(self.peer.pop())
+
+        def pop(self):
+            return self.hits.popleft();
+
+
+
+        def __makePairTree__(nodes):
+            ''' link a set of input nodes into a pair heap sort tree
+                returns the topmost node
+            '''
+            # print(f'__makePairTree__({len(nodes)})')
+            #recursive until one unpaired node
+            if len(nodes) == 0:
+                raise RuntimeError("miscoded pair heap")
+
+            if len(nodes) == 1:
+                nodes[0].isTerminal = True
+                return nodes[0]
+
+            acc = []
+            index = 0
+            while index < len(nodes):
+                a = nodes[index]
+                index += 1
+                if index < (len(nodes)):
+                    b = nodes[index]
+                    index += 1;
+                else:
+                    b = a
+                    a = acc[-1]
+                    acc = acc[:-1]
+
+
+                sink = PairHeapSorter.InputNode(f'{a.id}-{b.id}')
+                a.peer = b
+                b.peer = a
+                a.sink = sink
+                b.sink = sink
+                acc.append(sink)
+
+
+            return PairHeapSorter.InputNode.__makePairTree__(acc)
+
+
+    class OutputAdapter:
+        def __init__(self, sink):
+            self.sink = sink;
+
+        def enque(self, item):
+            if item.time == float('inf'):
+                self.sink.eos()
+            else:
+                self.sink.enque(item.hit)
+ 
+
+
+    def __init__(self, keys, sink):
+        self.sink = sink
+    
+        self.inn = 0;
+        self.out = 0;
+
+  
+
+        # make the sort tree
+        tmp = {}
+        for k in keys:
+           tmp[k] = PairHeapSorter.InputNode(f'{k}');
+        output = PairHeapSorter.InputNode.__makePairTree__(list(tmp.values()))
+
+        # adapt the input/output nodes of the sorter to operate
+        # with hits/eos rather that "items""
+        output.sink = PairHeapSorter.OutputAdapter(self.sink);  #forward sorted hits to sink
+        self.input_nodes = {}
+        for k, node in tmp.items():
+           self.input_nodes[k] = PairHeapSorter.InputAdapter(node)
+
+
+
+    def inputFor(self, key):
+        if key in self.input_nodes.keys():
+            return self.input_nodes[key]
+        else:
+            raise RuntimeError(f'Sorter not plumbed for {key}')
+
+   
 
