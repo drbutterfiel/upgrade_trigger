@@ -22,11 +22,34 @@ class Geometry:
         self.table = table
 
     def lookup(self, omkey):
+        module_key = ModuleKey.extractOMKey(omkey)
+
+        if module_key in self.table.keys():
+            return self.table[module_key]
+        else:
+            raise RuntimeError(f'Module {module_key} not in geometry')
+
+        return t
         # this is NOT correct, hut approximates for testing
         if omkey.pmt <= 2:
             return Geometry.DeviceType.DEGG
         else:
             return Geometry.DeviceType.MDOM
+
+    # stand-in for an authoritative geomtry source
+    # deduces device typ by the channel population
+    def deduceGeometry(omkeys):
+        ''' index om keys by module '''
+        module_type = {}
+
+        for omkey in omkeys:
+            module_key = ModuleKey.extractOMKey(omkey)
+            if module_key not in module_type.keys():
+                module_type[module_key] = Geometry.DeviceType.DEGG
+            if omkey.pmt > 2:
+                module_type[module_key] = Geometry.DeviceType.MDOM
+
+        return Geometry(module_type)
 
 
 
@@ -209,7 +232,6 @@ class Injest:
     ''' Injest I3Files and produce hit streams '''
 
     def __init__(self, files):
-        self.geometry = Geometry("todo")
         self.files = files
 
     def upgradePulseFrames(self, join=False, delta=100):
@@ -230,7 +252,12 @@ class Injest:
                     if 'I3RecoPulseSeriesMapUpgrade' in frame:
                         rpsm = frame['I3RecoPulseSeriesMapUpgrade']
                         group = Grouping(f'{fname}:{cnt}', 0)  # each frame is independent
-                        yield(Frame(self.geometry, group, rpsm))
+
+                        # dynamically learning the geometry
+                        # this should come from a static source
+                        geometry = Geometry.deduceGeometry(Population.extractPopulation(rpsm))
+
+                        yield(Frame(geometry, group, rpsm))
                         cnt += 1
 
     def __joined(self, delta):
@@ -248,7 +275,12 @@ class Injest:
                         offset = (last_pit - t_min) + delta
                         group = Grouping(f'{fname}:{cnt}', offset)  # track the inter-group time offset
                         #print(f'DEBUG: frame {cnt} interval: [{t_min}-{t_max}] last-pit: {last_pit} time_offset: {offset} ---> interval: [{t_min + offset}-{t_max + offset}]')
-                        yield(Frame(self.geometry, group, rpsm))
+                        
+                        # dynamically learning the geometry
+                        # this should come from a static source
+                        geometry = Geometry.deduceGeometry(Population.extractPopulation(rpsm))
+
+                        yield(Frame(geometry, group, rpsm))
                         last_pit = last_pit + (t_max + offset)
                         cnt += 1
 
