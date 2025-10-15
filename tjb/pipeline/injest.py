@@ -22,7 +22,12 @@ class Geometry:
         self.table = table
 
     def lookup(self, omkey):
-        return Geometry.DeviceType.DEGG
+        # this is NOT correct, hut approximates for testing
+        if omkey.pmt <= 2:
+            return Geometry.DeviceType.DEGG
+        else:
+            return Geometry.DeviceType.MDOM
+
 
 
 class ModuleKey:

@@ -60,7 +60,7 @@ class MMLC:
         def __init__(self):
             self.MAX_WINDOW=250; #must be >= the longest module window
             self.degg_cfg = MMLC.MMLCConfig.ModuleConfig(125, 125, 4, 4, 2)
-            self.mdom_cfg = MMLC.MMLCConfig.ModuleConfig(125, 125, 4, 4, 2)
+            self.mdom_cfg = MMLC.MMLCConfig.ModuleConfig(50, 50, 4, 4, 2)
 
 
     class MMLCWindow:
