@@ -5,6 +5,25 @@
 #
 from icecube import icetray, dataio, dataclasses, simclasses, phys_services, trigger_sim
 
+from enum import Enum
+
+#
+# Stand-in for geometry database
+#
+# TODO populate from geomtry source
+class Geometry:
+
+    class DeviceType(Enum):
+        DEGG = 1
+        MDOM = 2
+
+
+    def __init__(self, table):
+        self.table = table
+
+    def lookup(self, omkey):
+        return Geometry.DeviceType.DEGG
+
 
 class ModuleKey:
     '''Identifies individual modules by (string, om)'''
@@ -43,9 +62,10 @@ class MyHit:
 
     '''
 
-    def __init__(self, group, omkey, recopulse):
+    def __init__(self, group, omkey, device_type, recopulse):
         self.group = group
         self.omkey = omkey
+        self.device_type = device_type
         self.__recopulse = recopulse
         self.smlc = False
         self.mmlc = False
@@ -135,7 +155,8 @@ class Population:
 
 class Frame:
     ''' Provide RecoPulseSeriesMap iterations'''
-    def __init__(self, group, rpsm):
+    def __init__(self, geometry, group, rpsm):
+        self.geometry = geometry
         self.frame_id = group.id
         self.group = group
         self.rpsm = rpsm
@@ -176,13 +197,14 @@ class Frame:
         ''' iterate channel-by-channel'''
         for omkey, pulses in self.rpsm.items():
             for pulse in pulses:
-                yield MyHit(self.group, omkey, pulse)
+                yield MyHit(self.group, omkey, self.geometry.lookup(omkey), pulse)
                
 
 class Injest:
     ''' Injest I3Files and produce hit streams '''
 
     def __init__(self, files):
+        self.geometry = Geometry("todo")
         self.files = files
 
     def upgradePulseFrames(self, join=False, delta=100):
@@ -203,7 +225,7 @@ class Injest:
                     if 'I3RecoPulseSeriesMapUpgrade' in frame:
                         rpsm = frame['I3RecoPulseSeriesMapUpgrade']
                         group = Grouping(f'{fname}:{cnt}', 0)  # each frame is independent
-                        yield(Frame(group, rpsm))
+                        yield(Frame(self.geometry, group, rpsm))
                         cnt += 1
 
     def __joined(self, delta):
@@ -221,7 +243,7 @@ class Injest:
                         offset = (last_pit - t_min) + delta
                         group = Grouping(f'{fname}:{cnt}', offset)  # track the inter-group time offset
                         #print(f'DEBUG: frame {cnt} interval: [{t_min}-{t_max}] last-pit: {last_pit} time_offset: {offset} ---> interval: [{t_min + offset}-{t_max + offset}]')
-                        yield(Frame(group, rpsm))
+                        yield(Frame(self.geometry, group, rpsm))
                         last_pit = last_pit + (t_max + offset)
                         cnt += 1
 

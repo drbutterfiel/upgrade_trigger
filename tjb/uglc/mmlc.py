@@ -1,4 +1,5 @@
 from collections import deque
+from pipeline.injest import Geometry
 
 class MMLC:
     ''' Synthesizes MMLC for hits.
@@ -45,17 +46,32 @@ class MMLC:
     
 
 
+    # hardcoded
     class MMLCConfig:
-        def __init__(self, window_len=100):
-            self.MAX_WINDOW=100;
-            self.window_length=window_len
+
+        class ModuleConfig:
+            def __init__(self, t_back, t_fwd, span_up, span_down, multiplicity):
+                    self.t_back =t_back
+                    self.t_fwd = t_fwd
+                    self.span_up = span_up
+                    self.span_down = span_down
+                    self.multiplicity = multiplicity
+
+        def __init__(self):
+            self.MAX_WINDOW=250; #must be >= the longest module window
+            self.degg_cfg = MMLC.MMLCConfig.ModuleConfig(125, 125, 4, 4, 2)
+            self.mdom_cfg = MMLC.MMLCConfig.ModuleConfig(125, 125, 4, 4, 2)
+
 
     class MMLCWindow:
-        def __init__(self, hit, t_back, t_fwd):
+        def __init__(self, hit, t_back, t_fwd, span_up, span_down, multiplicity):
             self.hit = hit
             self.t_hit = hit.resolveTime()
             self.t_start = self.t_hit - t_back  #todo do we bound to 0?
             self.t_end = self.t_hit + t_fwd
+            self.span_up = span_up
+            self.span_down = span_down
+            self.multiplicity = multiplicity
             self.cost = 0
             self.mmlc = 0
 
@@ -66,32 +82,39 @@ class MMLC:
             if hit.omkey.om == self.hit.omkey.om:
                 return
             if t >= self.t_start and t<= self.t_end:
-                if hit.omkey.om <= (self.hit.omkey.om + 4) or hit.omkey.om >= (self.hit.omkey.om - 4):
+                if hit.omkey.om <= (self.hit.omkey.om + self.span_down) or hit.omkey.om >= (self.hit.omkey.om - self.span_up):
                     self.mmlc +=1
-                    if self.mmlc >= 2:
+                    if self.mmlc >= self.multiplicity:
                         self.hit.markMMLC()
 
 
 
     def __init__(self, string, config, sink):
         self.string = string
+        self.config = config
         self.pending = deque()
         self.held = deque()
-        self.MAX_WINDOW = config.MAX_WINDOW
-        self.fwd = 50
-        self.back = 50
         self.sink = sink
 
 
     def enque(self, hit):
 
-        window = MMLC.MMLCWindow(hit, self.back, self.fwd)
+        
+        match hit.device_type:
+            case Geometry.DeviceType.DEGG:
+                cfg = self.config.degg_cfg
+            case Geometry.DeviceType.MDOM:
+                cfg = self.config.mdom_cfg
+            case _:
+                raise RuntimeError(f'Unsupported device: {device_type}');
 
+
+        window = MMLC.MMLCWindow(hit, cfg.t_back, cfg.t_fwd, cfg.span_up, cfg.span_down, cfg.multiplicity)
         self.pending.append(window)
 
         self.examine(window.t_hit)
 
-        self.release(self.pending[0].t_hit - self.MAX_WINDOW)
+        self.release(self.pending[0].t_hit - self.config.MAX_WINDOW)
 
 
     def examine(self, pit):
