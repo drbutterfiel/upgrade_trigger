@@ -4,6 +4,7 @@ import time
 
 from collections import deque
 
+from pipeline.injest import Geometry
 from pipeline.injest import Population
 from pipeline.injest import ModuleKey
 from pipeline.injest import MyHit
@@ -25,6 +26,12 @@ class Pipeline:
         # needed to plumb the pipeline
         #
 
+
+        # dynamically learning the geometry
+        # this should come from a static source
+        geometry = Geometry.deduceGeometry(all_omkeys)
+
+
         # om_keys: overall  channel population
         # by_module: omkeys grouped by module
         self.om_keys = all_omkeys
@@ -33,6 +40,12 @@ class Pipeline:
 
         # assemble the processing pipeline
         self.sink = sink                                                                            # sink:        The terminal node: receives the processed hits in time order
+
+        # for delaney's data management
+        degg_smlc = SMLC.SMLCConfig.lookup(Geometry.DeviceType.DEGG)
+        mdom_smlc = SMLC.SMLCConfig.lookup(Geometry.DeviceType.MDOM)
+        print(f'SMLC: device_type: DEGG, window: {degg_smlc.window_len}, multiplicity: {degg_smlc.window_len}')
+        print(f'SMLC: device_type: MDOM, window: {mdom_smlc.window_len}, multiplicity: {mdom_smlc.window_len}')
 
 
        ########################################################
@@ -66,7 +79,8 @@ class Pipeline:
         # build an input map that feeds each omkey stream to a per-module SORT/SMLC pipeline        # a per-module SORT/SMLC pipeline with per-omkey inputs
         self.by_omkey_input = {}
         for k in self.by_module.keys():
-            modulesort = PairHeapSorter(self.by_module[k], SMLC(k, SMLC.SMLCConfig(100), self.sorter_out.inputFor(k)))
+            device_type= geometry.lookup(k)
+            modulesort = PairHeapSorter(self.by_module[k], SMLC(k, SMLC.SMLCConfig.lookup(device_type), self.sorter_out.inputFor(k)))
             for omk in self.by_module[k]:
                 self.by_omkey_input[omk] = modulesort.inputFor(omk);
 

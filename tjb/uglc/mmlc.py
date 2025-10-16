@@ -64,8 +64,8 @@ class MMLC:
             self.mdom_cfg = MMLC.MMLCConfig.ModuleConfig(125, 125, 4, 4, 2)
 
             # for delaney's data management
-            print(f'DEGG mmlc window: string: {self.string}, {self.degg_cfg.t_back + self.degg_cfg.t_fwd}, span_up: {self.degg_cfg.span_up} span_down: {self.degg_cfg.span_down} multiplicity: {self.degg_cfg.multiplicity}')
-            print(f'MDOM mmlc window: string: {self.string}, {self.mdom_cfg.t_back + self.mdom_cfg.t_fwd}, span_up: {self.mdom_cfg.span_up} span_down: {self.mdom_cfg.span_down} multiplicity: {self.mdom_cfg.multiplicity}')
+            print(f'MMLC: device_type: DEGG, string: {self.string}, window: {self.degg_cfg.t_back + self.degg_cfg.t_fwd}, span_up: {self.degg_cfg.span_up} span_down: {self.degg_cfg.span_down} multiplicity: {self.degg_cfg.multiplicity}')
+            print(f'MMLC: device_type: MDOM, string: {self.string}, window: {self.mdom_cfg.t_back + self.mdom_cfg.t_fwd}, span_up: {self.mdom_cfg.span_up} span_down: {self.mdom_cfg.span_down} multiplicity: {self.mdom_cfg.multiplicity}')
 
 
     class MMLCWindow:
