@@ -52,7 +52,7 @@ class Pipeline:
         
         post_mmlc_sorter = PairHeapSorter(self.byString.keys(), sink)
         for k in self.byString.keys():
-            string_to_mmlc[k] = MMLC(k, MMLC.MMLCConfig(), post_mmlc_sorter.inputFor(k))
+            string_to_mmlc[k] = MMLC(k, MMLC.MMLCConfig(k), post_mmlc_sorter.inputFor(k))
 
         to_mmlc = StringDemuxer(string_to_mmlc)
 

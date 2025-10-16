@@ -57,10 +57,15 @@ class MMLC:
                     self.span_down = span_down
                     self.multiplicity = multiplicity
 
-        def __init__(self):
+        def __init__(self, string):
             self.MAX_WINDOW=500; #must be >= the longest module window
+            self.string = string
             self.degg_cfg = MMLC.MMLCConfig.ModuleConfig(250, 250, 8, 8, 2)
             self.mdom_cfg = MMLC.MMLCConfig.ModuleConfig(125, 125, 4, 4, 2)
+
+            # for delaney's data management
+            print(f'DEGG mmlc window: string: {self.string}, {self.degg_cfg.t_back + self.degg_cfg.t_fwd}, span_up: {self.degg_cfg.span_up} span_down: {self.degg_cfg.span_down} multiplicity: {self.degg_cfg.multiplicity}')
+            print(f'MDOM mmlc window: string: {self.string}, {self.mdom_cfg.t_back + self.mdom_cfg.t_fwd}, span_up: {self.mdom_cfg.span_up} span_down: {self.mdom_cfg.span_down} multiplicity: {self.mdom_cfg.multiplicity}')
 
 
     class MMLCWindow:
@@ -88,7 +93,6 @@ class MMLC:
                         self.hit.markMMLC()
 
 
-
     def __init__(self, string, config, sink):
         self.string = string
         self.config = config
@@ -98,7 +102,6 @@ class MMLC:
 
 
     def enque(self, hit):
-
         
         match hit.device_type:
             case Geometry.DeviceType.DEGG:
