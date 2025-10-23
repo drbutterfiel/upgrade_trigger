@@ -41,6 +41,6 @@ class SMLC:
 
 
     def multiplicity_algo(self, multiplicity, window_hits):
-        if len(window_hits) > multiplicity:
+        if len(window_hits) >= multiplicity:
             for hit in window_hits:
                 hit.markSMLC()        
